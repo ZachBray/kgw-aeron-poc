@@ -40,11 +40,7 @@ public class EchoService implements Service {
     @Override
     public void init(ServiceContext serviceContext) throws Exception {
         this.serviceContext = serviceContext;
-
-        ServiceProperties properties = serviceContext.getProperties();
-        int repeatCount = getOptionalIntProperty(properties, "repeat", EchoServiceHandler.DEFAULT_REPEAT_COUNT);
-
-        handler = new EchoServiceHandler(repeatCount, serviceContext.getLogger());
+        handler = new EchoServiceHandler(serviceContext.getLogger());
     }
 
     @Override

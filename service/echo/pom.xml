@@ -25,6 +25,18 @@
             <artifactId>gateway.service</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>io.aeron</groupId>
+            <artifactId>aeron-client</artifactId>
+            <version>1.8.2</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.agrona</groupId>
+            <artifactId>agrona</artifactId>
+            <version>0.9.15</version>
+            <scope>compile</scope>
+        </dependency>
 
         <!-- test scoped dependencies -->
         <dependency>

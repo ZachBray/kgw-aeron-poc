@@ -97,6 +97,8 @@
         <module>mina.netty</module>
         <module>test.util</module>
         <module>update.check</module>
+        <module>aeron-gateway</module>
+        <module>aeron-demo-server</module>
     </modules>
 
     <dependencyManagement>
@@ -334,6 +336,7 @@
                                         <ignore />
                                     </action>
                                 </pluginExecution>
+                                <!--
                                 <pluginExecution>
                                     <pluginExecutionFilter>
                                         <groupId>org.kaazing</groupId>
@@ -347,6 +350,7 @@
                                         <ignore />
                                     </action>
                                 </pluginExecution>
+                                -->
                                 <pluginExecution>
                                     <pluginExecutionFilter>
                                         <groupId>org.kaazing</groupId>
@@ -364,6 +368,7 @@
                         </lifecycleMappingMetadata>
                     </configuration>
                 </plugin>
+                <!--
                 <plugin>
                     <groupId>com.mycila</groupId>
                     <artifactId>license-maven-plugin</artifactId>
@@ -377,6 +382,7 @@
                         </excludes>
                     </configuration>
                 </plugin>
+                -->
             </plugins>
         </pluginManagement>
 

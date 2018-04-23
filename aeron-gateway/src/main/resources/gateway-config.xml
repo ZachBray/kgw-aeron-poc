@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<gateway-config xmlns="http://xmlns.kaazing.org/2016/06/gateway">
+
+  <properties>
+    <property>
+      <name>gateway.hostname</name>
+      <value>0.0.0.0</value>
+    </property>
+
+    <property>
+      <name>gateway.port</name>
+      <value>8000</value>
+    </property>
+  </properties>
+
+  <service>
+    <name>echo</name>
+    <description>Simple echo service</description>
+    <accept>ws://localhost:${gateway.port}/echo</accept>
+
+    <type>echo</type>
+
+    <accept-options>
+      <ws.bind>0.0.0.0:8000</ws.bind>
+      <ws.maximum.message.size>256k</ws.maximum.message.size>
+    </accept-options>
+
+    <!-- "*" is not secure for javascript applications, change before running in production -->
+    <cross-site-constraint>
+      <allow-origin>*</allow-origin>
+    </cross-site-constraint>
+  </service>
+
+</gateway-config>

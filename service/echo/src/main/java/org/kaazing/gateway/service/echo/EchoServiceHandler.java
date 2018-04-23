@@ -15,67 +15,77 @@
  */
 package org.kaazing.gateway.service.echo;
 
-import java.util.concurrent.atomic.AtomicInteger;
+import java.nio.ByteBuffer;
+import java.util.concurrent.atomic.AtomicReference;
 
-import org.apache.mina.core.future.IoFutureListener;
-import org.apache.mina.core.future.WriteFuture;
+import org.agrona.DirectBuffer;
+import org.agrona.concurrent.IdleStrategy;
+import org.agrona.concurrent.UnsafeBuffer;
+import org.agrona.concurrent.YieldingIdleStrategy;
 import org.kaazing.gateway.transport.IoHandlerAdapter;
 import org.kaazing.gateway.transport.LoggingUtils;
 import org.kaazing.mina.core.buffer.IoBufferEx;
+import org.kaazing.mina.core.buffer.SimpleBufferAllocator;
 import org.kaazing.mina.core.session.IoSessionEx;
 import org.slf4j.Logger;
 
+import io.aeron.Aeron;
+import io.aeron.ConcurrentPublication;
+import io.aeron.FragmentAssembler;
+import io.aeron.Subscription;
+import io.aeron.logbuffer.FragmentHandler;
+import io.aeron.logbuffer.Header;
+
 class EchoServiceHandler extends IoHandlerAdapter<IoSessionEx> {
+    private final IdleStrategy idleStrategy = new YieldingIdleStrategy();
     private final Logger logger;
 
-    static final int DEFAULT_REPEAT_COUNT = 1;
+    private final Aeron aeron;
+    // Not a good pattern - just to prove integration works
+    private final AtomicReference<IoSessionEx> lastSession = new AtomicReference<>();
+    private final ConcurrentPublication publication;
+    private final UnsafeBuffer publicationBuffer;
 
-    private final int repeatCount;
-
-    EchoServiceHandler(int repeatCount, Logger logger) {
-        this.repeatCount = repeatCount;
+    EchoServiceHandler(Logger logger) {
         this.logger = logger;
+        aeron = Aeron.connect();
+        publication = aeron.addPublication("aeron:ipc", 1);
+        publicationBuffer = new UnsafeBuffer(new byte[1024 * 64]);
+        new Thread(this::subscribeToResponses).start();
+    }
+
+    private void subscribeToResponses() {
+        Subscription subscription = aeron.addSubscription("aeron:ipc", 2);
+        FragmentHandler handler = new FragmentAssembler(this::onResponse);
+        while (true) {
+            int workDone = subscription.poll(handler, 10);
+            if (workDone <= 0) {
+                idleStrategy.idle();
+            }
+        }
+    }
+
+    private void onResponse(DirectBuffer buffer, int offset, int length, Header header) {
+        IoSessionEx session = lastSession.get();
+        if (session == null) {
+            return;
+        }
+        byte[] copy = new byte[length];
+        buffer.getBytes(offset, copy);
+        IoBufferEx message = SimpleBufferAllocator.BUFFER_ALLOCATOR.wrap(copy);
+        session.write(message);
     }
 
     @Override
     protected void doMessageReceived(final IoSessionEx session, Object message) throws Exception {
+        lastSession.set(session);
         if (message instanceof IoBufferEx) {
-            final IoBufferEx buf = (IoBufferEx)message;
-            final int maximumStackDepth = 10;
-            final AtomicInteger listenerInvocationCount = new AtomicInteger();
-            final AtomicInteger listenerPendingCount = new AtomicInteger(maximumStackDepth);
-            final AtomicInteger remainingMessages = new AtomicInteger(repeatCount);
-            IoFutureListener<WriteFuture> listener = new IoFutureListener<WriteFuture>() {
-                @Override
-                public void operationComplete(WriteFuture future) {
-                    if(listenerInvocationCount.get() < maximumStackDepth) {
-                        while(listenerInvocationCount.incrementAndGet() < maximumStackDepth) {
-                            if (remainingMessages.decrementAndGet() >= 0) {
-                                session.write(buf).addListener(this);
-                            }
-                        }
-                    }
-
-                    if (listenerPendingCount.decrementAndGet() <= 0) {
-                        listenerInvocationCount.set(0);
-                        listenerPendingCount.set(maximumStackDepth);
-
-                        if (remainingMessages.decrementAndGet() >= 0) {
-                            session.write(buf).addListener(this);
-                        }
-                    }
-
-                }
-            };
-
-            if (remainingMessages.decrementAndGet() >= 0) {
-                session.write(buf).addListener(listener);
-            }
-        }
-        else {
-            for (int i=0; i < repeatCount; i++) {
-                session.write(message);
-            }
+            final IoBufferEx buf = (IoBufferEx) message;
+            final byte[] copy = buf.array();
+            publicationBuffer.putBytes(0, copy);
+            // Ignore failures
+            long bytesSent = publication.offer(publicationBuffer, 0, copy.length);
+            logger.debug("Published {} bytes", bytesSent);
         }
     }
 
